@@ -1,13 +1,14 @@
--- KeySystem Library
+-- KeySystem Library (with X button and draggable)
 local KeySystem = {}
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
 
 -- Default configuration
 local DEFAULT_CONFIG = {
-    Color = Color3.fromRGB(88, 101, 242), -- Discord blurple
+    Color = Color3.fromRGB(88, 101, 242),
     Title = "Key System",
-    Icon = "", -- Optional icon asset ID
+    Icon = "",
 }
 
 -- Helper function to get icon ID
@@ -22,11 +23,9 @@ local function getIconId(icon)
     return ""
 end
 
--- Main function to create key system
 function KeySystem.new(config)
     config = config or {}
-    
-    -- Merge config with defaults
+
     local ks = {
         Title = config.Title or DEFAULT_CONFIG.Title,
         Note = config.Note or "",
@@ -38,13 +37,12 @@ function KeySystem.new(config)
         OnExit = config.OnExit,
         ValidateKey = config.ValidateKey,
     }
-    
-    -- Global config reference
+
     local GuiConfig = {
         Color = config.Color or DEFAULT_CONFIG.Color,
         Title = ks.Title,
     }
-    
+
     -- Create GUI
     local KsGui = Instance.new("ScreenGui")
     KsGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -62,6 +60,8 @@ function KeySystem.new(config)
     Card.BorderSizePixel = 0
     Card.ZIndex = 101
     Card.Parent = KsGui
+    Card.Active = true
+    Card.Selectable = true
 
     local CardCorner = Instance.new("UICorner")
     CardCorner.CornerRadius = UDim.new(0, 10)
@@ -73,7 +73,109 @@ function KeySystem.new(config)
     CardStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     CardStroke.Parent = Card
 
-    -- Icon Box
+    -- DRAGGABLE FUNCTIONALITY
+    local dragging = false
+    local dragInput
+    local dragStart
+    local startPos
+
+    local function updateDrag(input)
+        if not dragging then return end
+        
+        local delta = input.Position - dragStart
+        local newPosition = UDim2.new(
+            startPos.X.Scale, 
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale, 
+            startPos.Y.Offset + delta.Y
+        )
+        
+        -- Keep card within screen bounds
+        local absPos = newPosition
+        Card.Position = absPos
+    end
+
+    -- Use the top bar area for dragging (icon box + title area)
+    local DragArea = Instance.new("Frame")
+    DragArea.Size = UDim2.new(1, -50, 0, 50) -- Leave space for X button
+    DragArea.Position = UDim2.new(0, 0, 0, 0)
+    DragArea.BackgroundTransparency = 1
+    DragArea.BorderSizePixel = 0
+    DragArea.ZIndex = 200
+    DragArea.Parent = Card
+
+    DragArea.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = Card.Position
+            
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    DragArea.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or
+           input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            updateDrag(input)
+        end
+    end)
+
+    -- X BUTTON (Close)
+    local XButton = Instance.new("TextButton")
+    XButton.Size = UDim2.new(0, 30, 0, 30)
+    XButton.Position = UDim2.new(1, -35, 0, 10)
+    XButton.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+    XButton.BackgroundTransparency = 0
+    XButton.BorderSizePixel = 0
+    XButton.ZIndex = 200
+    XButton.Text = "✕"
+    XButton.TextColor3 = Color3.fromRGB(140, 140, 150)
+    XButton.TextSize = 16
+    XButton.Font = Enum.Font.GothamBold
+    XButton.Parent = Card
+
+    local XButtonCorner = Instance.new("UICorner")
+    XButtonCorner.CornerRadius = UDim.new(0, 6)
+    XButtonCorner.Parent = XButton
+
+    local XButtonStroke = Instance.new("UIStroke")
+    XButtonStroke.Color = Color3.fromRGB(50, 50, 62)
+    XButtonStroke.Thickness = 1
+    XButtonStroke.Parent = XButton
+
+    -- X Button hover effects
+    XButton.MouseEnter:Connect(function()
+        TweenService:Create(XButton, TweenInfo.new(0.12), {
+            BackgroundColor3 = Color3.fromRGB(190, 65, 65),
+            TextColor3 = Color3.fromRGB(255, 255, 255)
+        }):Play()
+    end)
+
+    XButton.MouseLeave:Connect(function()
+        TweenService:Create(XButton, TweenInfo.new(0.12), {
+            BackgroundColor3 = Color3.fromRGB(28, 28, 36),
+            TextColor3 = Color3.fromRGB(140, 140, 150)
+        }):Play()
+    end)
+
+    -- X Button click
+    XButton.MouseButton1Click:Connect(function()
+        CloseKeySystem()
+    end)
+
+    -- Icon Box (moved slightly to accommodate X button)
     local IconBox = Instance.new("Frame")
     IconBox.Size = UDim2.new(0, 24, 0, 24)
     IconBox.Position = UDim2.new(0, 14, 0, 16)
@@ -81,11 +183,11 @@ function KeySystem.new(config)
     IconBox.BorderSizePixel = 0
     IconBox.ZIndex = 102
     IconBox.Parent = Card
-    
+
     local IconBoxCorner = Instance.new("UICorner")
     IconBoxCorner.CornerRadius = UDim.new(0, 6)
     IconBoxCorner.Parent = IconBox
-    
+
     local IconBoxStroke = Instance.new("UIStroke")
     IconBoxStroke.Color = Color3.fromRGB(50, 50, 62)
     IconBoxStroke.Thickness = 1
@@ -115,7 +217,7 @@ function KeySystem.new(config)
     KsTitle.BorderSizePixel = 0
     KsTitle.AnchorPoint = Vector2.new(0, 0.5)
     KsTitle.Position = UDim2.new(0, 44, 0, 28)
-    KsTitle.Size = UDim2.new(1, -58, 0, 18)
+    KsTitle.Size = UDim2.new(1, -90, 0, 18) -- Adjusted for X button
     KsTitle.ZIndex = 102
     KsTitle.Parent = Card
 
@@ -150,11 +252,11 @@ function KeySystem.new(config)
     InputBg.BorderSizePixel = 0
     InputBg.ZIndex = 102
     InputBg.Parent = Card
-    
+
     local InputBgCorner = Instance.new("UICorner")
     InputBgCorner.CornerRadius = UDim.new(0, 7)
     InputBgCorner.Parent = InputBg
-    
+
     local InputBgStroke = Instance.new("UIStroke")
     InputBgStroke.Color = Color3.fromRGB(44, 44, 56)
     InputBgStroke.Thickness = 1
@@ -196,7 +298,7 @@ function KeySystem.new(config)
             Transparency = 0.45
         }):Play()
     end)
-    
+
     KsInput.FocusLost:Connect(function()
         TweenService:Create(InputBgStroke, TweenInfo.new(0.18), {
             Color = Color3.fromRGB(44, 44, 56), 
@@ -356,28 +458,31 @@ function KeySystem.new(config)
         -- Hover effects
         local normBg = isPrimary and Color3.fromRGB(50,50,62) or Color3.fromRGB(26,26,34)
         local hovBg  = isPrimary and Color3.fromRGB(62,62,78) or Color3.fromRGB(34,34,44)
-        
+
         Btn.MouseEnter:Connect(function()
             TweenService:Create(Btn, TweenInfo.new(0.12), { BackgroundColor3 = hovBg }):Play()
         end)
-        
+
         Btn.MouseLeave:Connect(function()
             TweenService:Create(Btn, TweenInfo.new(0.12), { BackgroundColor3 = normBg }):Play()
         end)
 
-        -- Button click handler
+        -- Button click handler (FIXED VERSION)
         Btn.MouseButton1Click:Connect(function()
             local currentKey = KsInput.Text
             
             -- Check if this is the submit button
-            local isSubmit = btnCfg.Name == "Submit" or btnCfg.Style == "primary"
+            local isSubmit = (btnCfg.Name == "Submit" or btnCfg.Style == "primary")
             
-            -- Handle validation
+            -- Handle validation if this is submit and ValidateKey exists
             if ks.ValidateKey and isSubmit then
                 local isValid = ks.ValidateKey(currentKey)
                 if isValid then
                     if ks.OnSubmit then
-                        pcall(ks.OnSubmit, currentKey)
+                        local success, err = pcall(ks.OnSubmit, currentKey)
+                        if not success then
+                            warn("OnSubmit error:", err)
+                        end
                     end
                     CloseKeySystem()
                 else
@@ -396,22 +501,32 @@ function KeySystem.new(config)
                     
                     task.spawn(ShakeCard)
                 end
-            elseif btnCfg.Callback then
-                -- Custom button callback
-                local result = pcall(btnCfg.Callback, currentKey)
-                if result == true then
-                    CloseKeySystem()
-                end
-            else
-                -- Default behavior: check if it's an exit button
-                local isCloseBtn = btnCfg.Close == true or
-                                 btnCfg.Name == "Exit" or
-                                 btnCfg.Name == "Close" or
-                                 btnCfg.Name == "Cancel"
+                return
+            end
+            
+            -- Handle custom button callbacks
+            if btnCfg.Callback then
+                local success, callbackResult = pcall(btnCfg.Callback, currentKey)
                 
-                if isCloseBtn then
-                    CloseKeySystem()
+                if success then
+                    if callbackResult == true then
+                        CloseKeySystem()
+                    end
+                    -- If callbackResult is false, nil, etc., keep GUI open
+                else
+                    warn("Button callback error:", callbackResult)
                 end
+                return
+            end
+            
+            -- Default behavior: check if it's an exit button
+            local isCloseBtn = btnCfg.Close == true or
+                             btnCfg.Name == "Exit" or
+                             btnCfg.Name == "Close" or
+                             btnCfg.Name == "Cancel"
+            
+            if isCloseBtn then
+                CloseKeySystem()
             end
         end)
     end
